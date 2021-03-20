@@ -1,30 +1,42 @@
 % Parameters
 signal_length = 100000;
-SNR = -10 : 0.5 : 20;
+SNR = -10 : 0.5 : 30;
 
 %Generating a random signal with binary bits (0 and 1)
 tx_bits = randi([0,1],signal_length,1);
 
-BER = zeros(numel(SNR),1);
+alamouti_BER = zeros(numel(SNR),1);
+repetition_BER = zeros(numel(SNR),1);
+theoretical_BER = zeros(numel(SNR),1);
 
 for i = 1:numel(SNR)
 
-    BER(i) = system(tx_bits, SNR(i));
-
+    snr_now = 10^(SNR(i)/10); 
+    alamouti_BER(i) = alamouti_system(tx_bits, SNR(i));
+    repetition_BER(i) = repetition_system(tx_bits, SNR(i));
+    theoretical_BER(i) = 1/(snr_now^2);
+    
 end
-
 %% PLOTTING THE BER FOR ALL CASES
 
 figure(1);
-semilogy(SNR, BER);
+semilogy(SNR, alamouti_BER);
+hold on;
+semilogy(SNR, repetition_BER);
+semilogy(SNR, theoretical_BER);
+hold off;
 title('BER for Different Cases');
+legend('Alamouti','Repetition');
 xlabel('SNR (dB)');
 ylabel('BER');
 grid on;
 
 %% FUNCTIONS
 
-function error = system(tx_bits, SNR)
+function error = alamouti_system(tx_bits, SNR)
+
+    % Bit Energy
+    Eb = 0.25;
 
     % ##### Modulation #####
     msg_symbols = bits2qpsk(tx_bits);
@@ -33,13 +45,72 @@ function error = system(tx_bits, SNR)
     [tx_1, tx_2] = alamouti_encoder(msg_symbols);
     
     % ##### Channel ##### 
-    [rx_symbols, h1, h2] = channel(tx_1, tx_2, SNR);
+    [rx_symbols, h1, h2] = channel(tx_1, tx_2, SNR, Eb);
     
     % ##### Alamouti Decoding #####
     decoded_symbols = alamouti_decoder(rx_symbols, h1, h2);
     
     % ##### QPSK Demodulation #####
     detected_symbols = qpsk_detector(decoded_symbols);
+    rx_bits = qpsk_demod(detected_symbols);
+    
+    % ##### Error #####
+    error = sum(bitxor(rx_bits,tx_bits)) / numel(rx_bits);
+    
+end
+
+function error = repetition_system(tx_bits, SNR)
+
+    % Bit Energy
+    Eb = 0.5;
+    
+    % ##### Modulation #####
+    msg_symbols = bits2qpsk(tx_bits);
+    
+    msg_symbols = sqrt(2)*msg_symbols;
+    
+%     disp(length(msg_symbols));
+%     disp(msg_symbols(1:10));
+
+    % ##### Repetition Coding #####
+    [tx_1, tx_2] = repetition_encoder(msg_symbols);
+    
+%     disp(length(tx_1));
+%     disp(length(tx_2));
+%     disp(tx_1(1:10));
+%     disp(tx_2(1:10));
+    
+    % ##### Channel ##### 
+    [rx_symbols, h1, h2] = channel(tx_1, tx_2, SNR, Eb);
+    
+%     disp(length(h1));
+%     disp(length(h2));
+%     disp(length(rx_symbols));
+%     disp(h1(1:10));
+%     disp(h2(1:10));
+%     disp(rx_symbols(1:10));
+    
+    % ##### getting h vector #####  
+    h1 = reshape(h1, 2, numel(h1)/2);
+    h1 = h1(1,:);
+    h2 = reshape(h2, 2, numel(h2)/2);
+    h2 = h2(1,:);
+    h = [h1' h2'];
+    h = h';
+    h = h(:);
+    
+%     disp(length(h));
+%     disp(h(1:10));
+        
+    % ##### Maximal Ratio Combiner #####
+    rx_vector = maximal_ratio_combiner(rx_symbols, h, 2);
+    
+%     disp(rx_vector(1:10));
+    
+    % ##### QPSK Demodulation #####
+    detected_symbols = qpsk_detector(rx_vector);
+    
+%     disp(detected_symbols(1:10));
     rx_bits = qpsk_demod(detected_symbols);
     
     % ##### Error #####
@@ -99,7 +170,19 @@ function [tx_1, tx_2] = alamouti_encoder(symbols)
     
 end
 
-function [rx_symbols, h1, h2] = channel(tx_1, tx_2, SNR)
+function [tx_1, tx_2] = repetition_encoder(msg_symbols)
+
+    tx_1 = [msg_symbols zeros(numel(msg_symbols),1)];
+    tx_1 = tx_1.';
+    tx_1 = tx_1(:);
+    
+    tx_2 = [zeros(numel(msg_symbols),1) msg_symbols];
+    tx_2 = tx_2.';
+    tx_2 = tx_2(:);
+    
+end
+
+function [rx_symbols, h1, h2] = channel(tx_1, tx_2, SNR, Eb)
 
     length = numel(tx_1);
     
@@ -122,7 +205,7 @@ function [rx_symbols, h1, h2] = channel(tx_1, tx_2, SNR)
     h2 = repetition_coding(h2,2);
     
     % AWGN Generation
-    sigma = sqrt(1/(2*snr_now)); % standard devation of noise for BPSK
+    sigma = sqrt(Eb/(2*snr_now)); % standard devation of noise for BPSK
         
     w = sigma*(randn(length,1) + 1i*randn(length,1));
     
@@ -160,6 +243,33 @@ function decoded_symbols = alamouti_decoder(symbols, h1, h2)
 
 end
 
+function rx_vector = maximal_ratio_combiner(rx_symbols, h, reps)
+
+    length = numel(rx_symbols)/reps;
+    
+    rx_matrix = reshape(rx_symbols, reps, length);
+    
+    h_matrix = reshape(h, reps, length);
+    
+    % Maximal Ratio Combiner
+    
+    rx_vector = zeros(length,1);
+    
+    for i = 1:length
+        
+        h_i = h_matrix(:,i);
+        y_i = rx_matrix(:,i);
+        
+        h_i_norm = norm(h_i);
+        
+        rx_symbol = (h_i' * y_i) / (h_i_norm);
+        
+        rx_vector(i) = rx_symbol;
+        
+    end
+
+end
+
 function detected_symbol = qpsk_detector(symbol) 
 
     %Phase of the current symbol in degrees
@@ -174,7 +284,7 @@ function detected_symbol = qpsk_detector(symbol)
             detected_symbol(i) = 0.5+0.5*1i;
 
         %if phase --> [90,180] symbol = -1+j  II Quadrant
-        elseif phase(i) >= 90 && phase(i) < 180
+        elseif phase(i) >= 90 && phase(i) <= 180
             detected_symbol(i) = -0.5+0.5*1i;
 
         %if phase --> [0,-90] symbol = 1-j    IV Quadrant
@@ -230,13 +340,3 @@ function recvd_bits = qpsk_demod(recvd_symbols)
     %                  |
 
 end
-
-
-
-
-
-
-
-
-
-
