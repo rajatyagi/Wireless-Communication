@@ -12,16 +12,17 @@ tx_bits = randi([0,1],signal_length,1);
 disp('First 20 Transmitted Bits');
 disp(tx_bits(1:20));
 
-% L is the number of times we repeat each bit
+
+% Generating BPSK symbols from the bits
+
 L = 5;
 
-% Vary SNR from -10 dB to 10 dB
 SNR = -10 : 0.1 : 10;
-prac_BER = zeros(numel(SNR),1); % array to store practical BER values
+error = zeros(numel(SNR),1);
 
 for i = 1:numel(SNR)
 
-    prac_BER(i) = system(tx_bits,L,SNR(i));
+    error(i) = system(tx_bits,L,SNR(i));
     disp(SNR(i));
     
 end
@@ -37,7 +38,7 @@ end
 theo_BER = nchoosek(2*L-1,L)./((4*(10.^(SNR/10))).^L)';
 
 figure(1);
-semilogy(SNR, prac_BER);
+semilogy(SNR, error);
 hold on;
 semilogy(SNR, theo_BER);
 hold off;
@@ -75,6 +76,7 @@ function symbols = bits2bpsk(bits)
     % This function converts bits to BPSK symbols
     % 0 -> -1
     % 1 -> 1
+    
     symbols = bits*2 - 1;
 
 end
@@ -85,7 +87,7 @@ function rep_symbols = repetition_coding(symbols,L)
     % all the message bits.
     Symbol_matrix = repmat(symbols,1,L);  
     
-    % Converting the matrix to a linear vector of repeated bits (L times)
+    %converting the matrix to a linear vector of repeated bits
     rep_symbols = Symbol_matrix';
     rep_symbols = rep_symbols(:); % Flattening the matrix
 
