@@ -21,7 +21,7 @@ function error = system(tx_bits, reps, SNR, packet_size)
     interleaved_symbols = interleaver(rep_symbols,packet_size);
     
     % ##### Channel ##### 
-    [rx_symbols, h] = channel(rep_symbols,SNR);
+    [rx_symbols, h] = channel(interleaved_symbols,SNR);
     
     % ##### De-Interleaving #####
     de_interleaved_symbols = interleaver(rx_symbols,packet_size);
