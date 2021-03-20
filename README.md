@@ -3,9 +3,9 @@
 1. Implement a BPSK modulated signal transmission adopting coherent
 reception.
 
-    a. Obtain the BER vs. SNR. curves with L = 1 (no repetition) and L =
+    **a. Obtain the BER vs. SNR. curves with L = 1 (no repetition) and L =
 {2,3,4,5} repetitions over a Rayleigh fading channel. Determine the
-range of SNR values you want to simulate using your own intuition.
+range of SNR values you want to simulate using your own intuition.**
 
     b. Let us say that each coherence period corresponds to 8 BPSK
 samples. Create your own random channel which becomes “bad” once
