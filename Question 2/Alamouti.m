@@ -1,6 +1,6 @@
 % Parameters
-signal_length = 100000;
-SNR = -10 : 0.5 : 30;
+signal_length = 10000000;
+SNR = -10 : 0.5 : 25;
 
 %Generating a random signal with binary bits (0 and 1)
 tx_bits = randi([0,1],signal_length,1);
@@ -25,8 +25,8 @@ hold on;
 semilogy(SNR, repetition_BER);
 semilogy(SNR, theoretical_BER);
 hold off;
-title('BER for Different Cases');
-legend('Alamouti','Repetition');
+title('BER vs. SNR for Different Cases');
+legend('Alamouti Coding','Repetition Coding', 'Theoretical Upper Bound');
 xlabel('SNR (dB)');
 ylabel('BER');
 grid on;
