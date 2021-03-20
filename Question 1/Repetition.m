@@ -5,7 +5,7 @@
 % L = {2,3,4,5} repetitions over a Rayleigh fading channel.
 
 % Parameters
-signal_length = 1000;
+signal_length = 10000000;
 
 % Generating a random signal with binary bits (0 and 1)
 tx_bits = randi([0,1],signal_length,1);
@@ -16,42 +16,32 @@ disp(tx_bits(1:20));
 L = [1 2 3 4 5];
 
 % Vary signal to noise ratio (SNR) from -10 dB to 10 dB
-SNR = -10 : 0.1 : 10;
+SNR = -10 : 0.5 : 20;
 
 % Array to store practical bit error rate (BER) values
 prac_BER = zeros(numel(SNR),numel(L));
 
 % Run the sysmtem for each value of L over all values of SNR
 for j = 1:numel(L)
+    disp(L(j))
     for i = 1:numel(SNR)
 
-        prac_BER(i, j) = system(tx_bits,L(j),SNR(i));
-        disp(SNR(i));
+        prac_BER(i, j) = system(tx_bits, L(j), SNR(i));
 
     end
 end
 
-%% Theoretical vs. Practical BER
-% The theoretical bit error rate in BPSK with Rayleigh fading channel is
-% given as follows:
-
-%       (2L-1)      1
-%  P_e =     C  ----------
-%             L  (4SNR)^L
-
-% theo_BER = nchoosek(2*L-1,L)./((4*(10.^(SNR/10))).^L)';
+%% PLOTTING THE BER FOR DIFFERENT L
 
 figure(1);
 for i = 1:numel(L)
     
-    semilogy(SNR, prac_BER(:,i), '-r')
+    semilogy(SNR, prac_BER(:,i))
     hold on
-    % semilogy(snr_array, ber_theo_nogray, '-b')
-    title('Practical BER for different L');
-    xlabel('SNR (dBW)');
+    title('BER for Different L values');
+    xlabel('SNR (dB)');
     ylabel('BER');
-    %legend('With Gray Labeling', 'Without Gray Labeling');
-    %legend
+    text(SNR(35),prac_BER(35, i),"L="+num2str(L(i)))
     
 end
 hold off
@@ -59,7 +49,7 @@ grid on;
 
 %% FUNCTIONS
 
-function error = system(tx_bits,reps,SNR)
+function error = system(tx_bits, reps, SNR)
 
     % This function takes the message bits, L and SNR as input.
     % It performs the modulation, repetition coding, reception in fading
@@ -69,10 +59,10 @@ function error = system(tx_bits,reps,SNR)
     msg_symbols = bits2bpsk(tx_bits);
 
     % ##### REPETITION CODING ##########
-    rep_symbols = repetition_coding(msg_symbols,reps);
+    rep_symbols = repetition_coding(msg_symbols, reps);
     
     % ##### CHANNEL ####################
-    [rx_symbols, h] = channel(rep_symbols,SNR);
+    [rx_symbols, h] = channel(rep_symbols, SNR);
     
     % ##### MAXIMAL RATIO COMBINER #####
     rx_vector = maximal_ratio_combiner(rx_symbols, h, reps);
@@ -81,7 +71,7 @@ function error = system(tx_bits,reps,SNR)
     rx_bits = bpsk_demodulation(rx_vector);
     
     % ##### ERROR CALCULATION ##########
-    error = sum(bitxor(rx_bits,tx_bits)) / numel(rx_bits);
+    error = sum(bitxor(rx_bits, tx_bits)) / numel(rx_bits);
     
 end
 
@@ -106,11 +96,12 @@ function rep_symbols = repetition_coding(symbols,L)
 
 end
 
-function [rx_symbols, h] = channel(rep_symbols,SNR)
+function [rx_symbols, h] = channel(rep_symbols, SNR)
 
     % This function emulates a Rayleigh fading channel with
     % Channel gain => h ~ CN(0,1)
-    % AWGN => w ~ CN(0, sigma^2) (sigma is defined below)
+    % AWGN => w ~ CN(0, sigma^2)
+    % where, sigma = sqrt(1/2*SNR)
     
     length = numel(rep_symbols);
     
@@ -121,13 +112,13 @@ function [rx_symbols, h] = channel(rep_symbols,SNR)
     % Rayleigh fading channel gain is given by a 
     % complex normal distribution.
     
-    h_real = randn(length, 1); % real part
-    h_imag = randn(length, 1); % imaginary part
+    h_real = sqrt(0.5)*randn(length, 1); % real part
+    h_imag = sqrt(0.5)*randn(length, 1); % imaginary part
     
-    h = h_real + 1i * h_imag; % complex number
+    h = h_real + 1i*h_imag; % complex number
     
     % ADDITIVE WHITE GAUSSIAN NOISE
-    sigma = sqrt(1/2*snr_now); % standard devation of noise for BPSK
+    sigma = sqrt(1/(2*snr_now)); % standard devation of noise for BPSK
     
     w = sigma*(randn(length,1) + 1i*randn(length,1)); % complex noise
     
