@@ -8,7 +8,7 @@
 % has better performance than "only interleaving" or "only repetition".
 
 % Parameters
-signal_length = 10000;
+signal_length = 10000000;
 SNR = -10 : 0.5 : 20;
 
 %Generating a random signal with binary bits (0 and 1)
@@ -78,14 +78,23 @@ function error = system(tx_bits, reps, SNR, packet_size)
     rep_symbols = repetition_coding(msg_symbols,reps);
     
     % ##### Interleaving #####
-    interleaved_symbols = interleaver(rep_symbols,packet_size);
+    if(packet_size ~= 1)
+        interleaved_symbols = interleaver(rep_symbols,packet_size);
+    else
+        interleaved_symbols = rep_symbols;
+    end
     
     % ##### Channel ##### 
     [rx_symbols, h] = channel(interleaved_symbols,SNR);
     
     % ##### De-Interleaving #####
-    de_interleaved_symbols = interleaver(rx_symbols,packet_size);
-    de_interleaved_h = interleaver(h,packet_size);
+    if(packet_size ~= 1)
+        de_interleaved_symbols = interleaver(rx_symbols,packet_size);
+        de_interleaved_h = interleaver(h,packet_size);
+    else
+        de_interleaved_symbols = rx_symbols;
+        de_interleaved_h = h;
+    end
     
     % ##### Maximal Ratio Combiner #####
     rx_vector = maximal_ratio_combiner(de_interleaved_symbols, de_interleaved_h, reps);
