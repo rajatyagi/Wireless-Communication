@@ -1,13 +1,73 @@
+%% QUESTION 1
+
+% PART (b)
+% Let us say that each coherence period corresponds to 8 BPSK samples.
+% Create your own random channel which becomes “bad” once in every four
+% coherence time periods (you can define “bad” based on intuition).
+% Show through BER vs. SNR simulations that "interleaving + repetition"
+% has better performance than "only interleaving" or "only repetition".
 
 % Parameters
-signal_length = 1000000;
-packet_size = 10;
-reps = 5;
+signal_length = 10000;
+SNR = -10 : 0.5 : 20;
 
 %Generating a random signal with binary bits (0 and 1)
 tx_bits = randi([0,1],signal_length,1);
 disp('First 20 Transmitted Bits');
 disp(tx_bits(1:20));
+
+% Only Interleaving
+packet_size = 5;
+reps = 1;
+
+interleave_BER = zeros(numel(SNR), 1);
+
+for i = 1:numel(SNR)
+
+    interleave_BER(i) = system(tx_bits, reps, SNR(i), packet_size);
+
+end
+
+% Only Repetition Coding
+packet_size = 1;
+reps = 5;
+
+repeat_BER = zeros(numel(SNR), 1);
+
+for i = 1:numel(SNR)
+
+    repeat_BER(i) = system(tx_bits, reps, SNR(i), packet_size);
+
+end
+
+% Interleaving + Repetition Coding
+packet_size = 5;
+reps = 5;
+
+inter_rep_BER = zeros(numel(SNR), 1);
+
+for i = 1:numel(SNR)
+
+    inter_rep_BER(i) = system(tx_bits, reps, SNR(i), packet_size);
+
+end
+
+%% PLOTTING THE BER FOR ALL CASES
+
+figure(1);
+semilogy(SNR, interleave_BER)
+hold on
+semilogy(SNR, repeat_BER)
+semilogy(SNR, inter_rep_BER)
+title('BER for Different Cases');
+xlabel('SNR (dB)');
+ylabel('BER');
+legend('Interleaving', 'Repetition Coding', 'Interleaving + Repetition Coding');
+legend
+hold off
+grid on;
+
+%% FUNCTIONS
 
 function error = system(tx_bits, reps, SNR, packet_size)
 
