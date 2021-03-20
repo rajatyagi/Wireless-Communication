@@ -9,7 +9,7 @@ tx_bits = randi([0,1],signal_length,1);
 disp('First 20 Transmitted Bits');
 disp(tx_bits(1:20));
 
-function error = system(tx_bits,reps,SNR)
+function error = system(tx_bits, reps, SNR, packet_size)
 
     % ##### Modulation #####
     msg_symbols = bits2bpsk(tx_bits);
@@ -18,14 +18,17 @@ function error = system(tx_bits,reps,SNR)
     rep_symbols = repetition_coding(msg_symbols,reps);
     
     % ##### Interleaving #####
+    interleaved_symbols = interleaver(rep_symbols,packet_size);
     
     % ##### Channel ##### 
     [rx_symbols, h] = channel(rep_symbols,SNR);
     
     % ##### De-Interleaving #####
+    de_interleaved_symbols = interleaver(rx_symbols,packet_size);
+    de_interleaved_h = interleaver(h,packet_size);
     
     % ##### Maximal Ratio Combiner #####
-    rx_vector = maximal_ratio_combiner(rx_symbols, h, reps);
+    rx_vector = maximal_ratio_combiner(de_interleaved_symbols, de_interleaved_h, reps);
         
     % ##### BPSK Demodulation #####
     rx_bits = bpsk_demodulation(rx_vector);
@@ -57,12 +60,12 @@ function interleaved_symbols = interleaver(symbols,packet_size)
     buffer_length = mod(numel(symbols),packet_size^2);
     buffer_symbols = symbols(end - buffer_length + 1 : end);
     symbols = symbols(1 : end - buffer_length);
-        
+            
     rx_matrix = reshape(symbols, packet_size, packet_size, []);
     
     sz = size(rx_matrix);
     
-    buf = zeros(packet_size^2,sz(3));
+    buf = zeros(sz(3),packet_size^2);
     
     for i = 1 : sz(3)
        
@@ -73,8 +76,8 @@ function interleaved_symbols = interleaver(symbols,packet_size)
     end
     
     interleaved_symbols = buf.';
-    interleaved_symbols = buf(:);
-    interleaved_symbols = [interleaved_symbols buffer_symbols];
+    interleaved_symbols = interleaved_symbols(:);
+    interleaved_symbols = vertcat(interleaved_symbols, buffer_symbols);
 
 end
 
@@ -95,7 +98,7 @@ function [rx_symbols, h] = channel(rep_symbols,SNR)
     
     for i = 1 : numel(h)
        
-        if(mod(1,4) == 0)            
+        if(mod(i,4) == 0)            
             h(i) = h(i)*(1/(10*snr_now));            
         end
                 
@@ -114,11 +117,6 @@ function [rx_symbols, h] = channel(rep_symbols,SNR)
 
 end
 
-function de_interleaved_symbols = de_interleaver(symbols,packet_size)
-
-    
-
-end
 
 function rx_vector = maximal_ratio_combiner(rx_symbols, h, reps)
 
