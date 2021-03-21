@@ -71,6 +71,9 @@ grid on;
 
 function error = system(tx_bits, reps, SNR, packet_size)
 
+    % This function takes the message bits, repetitions, SNR and packet
+    % size as input. It performs the below defined tasks to give error.
+
     % ##### Modulation #####
     msg_symbols = bits2bpsk(tx_bits);
 
@@ -124,9 +127,12 @@ function rep_symbols = repetition_coding(symbols,L)
 
 end
 
-function interleaved_symbols = interleaver(symbols,packet_size)
+function interleaved_symbols = interleaver(symbols, packet_size)
 
+    % dividing the symbol stream into blocks of packet_size
     buffer_length = mod(numel(symbols),packet_size^2);
+    
+    % removing the buffer symbols (not a multiple of packet_size)
     buffer_symbols = symbols(end - buffer_length + 1 : end);
     symbols = symbols(1 : end - buffer_length);
             
@@ -136,6 +142,8 @@ function interleaved_symbols = interleaver(symbols,packet_size)
     
     buf = zeros(sz(3),packet_size^2);
     
+    % Interleaving all the symbols of a packet with consecutive
+    % (packet_size - 1) packets.
     for i = 1 : sz(3)
        
         buf_1 = rx_matrix(:,:,i);
@@ -146,6 +154,8 @@ function interleaved_symbols = interleaver(symbols,packet_size)
     
     interleaved_symbols = buf.';
     interleaved_symbols = interleaved_symbols(:);
+    
+    % Adding the removed buffer symbols
     interleaved_symbols = vertcat(interleaved_symbols, buffer_symbols);
 
 end

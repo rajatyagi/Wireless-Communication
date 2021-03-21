@@ -1,3 +1,9 @@
+%% QUESTION 2
+% Implement the 2 Tx x 1 Rx Alamouti scheme using QPSK modulated symbols.
+% Plot the BER vs. SNR for a Rayleigh fading channel with and without
+% Alamouti scheme. Compare the simulation results with the theoretical
+% upper bound for the probability of error vs. SNR.
+
 % Parameters
 signal_length = 10000000;
 SNR = -10 : 0.5 : 25;
@@ -68,27 +74,12 @@ function error = repetition_system(tx_bits, SNR)
     msg_symbols = bits2qpsk(tx_bits);
     
     msg_symbols = sqrt(2)*msg_symbols;
-    
-%     disp(length(msg_symbols));
-%     disp(msg_symbols(1:10));
 
     % ##### Repetition Coding #####
     [tx_1, tx_2] = repetition_encoder(msg_symbols);
     
-%     disp(length(tx_1));
-%     disp(length(tx_2));
-%     disp(tx_1(1:10));
-%     disp(tx_2(1:10));
-    
     % ##### Channel ##### 
     [rx_symbols, h1, h2] = channel(tx_1, tx_2, SNR, Eb);
-    
-%     disp(length(h1));
-%     disp(length(h2));
-%     disp(length(rx_symbols));
-%     disp(h1(1:10));
-%     disp(h2(1:10));
-%     disp(rx_symbols(1:10));
     
     % ##### getting h vector #####  
     h1 = reshape(h1, 2, numel(h1)/2);
@@ -98,19 +89,12 @@ function error = repetition_system(tx_bits, SNR)
     h = [h1' h2'];
     h = h';
     h = h(:);
-    
-%     disp(length(h));
-%     disp(h(1:10));
         
     % ##### Maximal Ratio Combiner #####
     rx_vector = maximal_ratio_combiner(rx_symbols, h, 2);
     
-%     disp(rx_vector(1:10));
-    
     % ##### QPSK Demodulation #####
     detected_symbols = qpsk_detector(rx_vector);
-    
-%     disp(detected_symbols(1:10));
     rx_bits = qpsk_demod(detected_symbols);
     
     % ##### Error #####
