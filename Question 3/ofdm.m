@@ -1,5 +1,6 @@
 % Parameters
-signal_length = 64000;
+num_subcarriers = 64;
+signal_length = num_subcarriers * 200;
 SNR = -10 : 0.5 : 30;
 
 %Generating a random signal with binary bits (0 and 1)
@@ -9,7 +10,7 @@ ofdm_BER = zeros(numel(SNR),1);
 
 for i = 1:numel(SNR)
 
-    ofdm_BER(i) = ofdm_system(tx_bits, SNR(i), 64, 8);
+    ofdm_BER(i) = ofdm_system(tx_bits, SNR(i), 8, 64, 8);
     
 end
 
@@ -24,7 +25,7 @@ grid on;
 
 %% FUNCTIONS
 
-function error = ofdm_system(tx_bits, SNR, num_subcarriers, cp_len)
+function error = ofdm_system(tx_bits, SNR, taps, num_subcarriers, cp_len)
 
     % Bit Energy
     Eb = 0.5;
@@ -46,25 +47,37 @@ function error = ofdm_system(tx_bits, SNR, num_subcarriers, cp_len)
     tx_symbols = cp_ifft_symbols(:);    
     
     % ##### Channel #####
-    [rx_symbols, h] = channel(tx_symbols, SNR, Eb);
+    [rx_symbols, h] = channel(tx_symbols, SNR, Eb, taps, num_subcarriers, cp_len);
     
-    % ##### Maximal Ratio Combiner #####
-    rx_vector = maximal_ratio_combiner(rx_symbols, h, 1);
+    % ##### h matrix #####
+    sz = size(h);
+    H = zeros(numel(rx_symbols)/(num_subcarriers + cp_len),num_subcarriers);
+    for i = 1 : sz(1)
+        if(mod(i,(num_subcarriers + cp_len)) == 1)
+           
+            h_buf = h(i,:);
+            H(1 + (i-1)/(num_subcarriers + cp_len),:) = h_buf(1:num_subcarriers);
+            
+        end
+    end
+    
+    H = H.';
     
     % ##### Serial to Parallel #####
-    rx_ofdm_symbols = reshape(rx_vector, num_subcarriers + cp_len, numel(rx_symbols)/(num_subcarriers + cp_len));
+    rx_ofdm_symbols = reshape(rx_symbols, num_subcarriers + cp_len, numel(rx_symbols)/(num_subcarriers + cp_len));
     
     % ##### Remove Cyclic Prefix #####
     rx_ofdm_symbols = rx_ofdm_symbols(cp_len + 1 : end, :);
-
-    % ##### FFT #####
-    fft_symbols = ofdm_fft(rx_ofdm_symbols);
     
-    % ##### Parallel to Serial #####
-    fft_symbols = fft_symbols(:);
+    % ##### FFT #####
+    fft_symbols = fft(rx_ofdm_symbols);
+    fft_H = fft(H);
+    
+    % ##### Maximal Ratio Combiner #####
+    rx_vector = maximal_ratio_combiner(fft_symbols, fft_H);
     
     % ##### QPSK Demodulation ##### 
-    detected_symbols = qpsk_detector(fft_symbols);
+    detected_symbols = qpsk_detector(rx_vector);
     rx_bits = qpsk_demod(detected_symbols);
    
     % ##### Error ##### 
@@ -129,61 +142,69 @@ function fft_symbols = ofdm_fft(ofdm_symbols)
 
 end
 
-function [rx_symbols, h] = channel(rep_symbols, SNR, Eb)
+function [rx_symbols, h] = channel(symbols, SNR, Eb, taps, num_subcarriers, cp_len)
 
+    y = zeros(numel(symbols),1);
+    symbols_padded = vertcat(zeros(num_subcarriers + cp_len - 1, 1),symbols);
+    h = [];
+    for i = 1 : (numel(symbols) / (num_subcarriers + cp_len))
+       
+        h = [h channel_gain(num_subcarriers, taps, cp_len)];
+        
+    end
+    
+    h = h.';
+    
+    for i = num_subcarriers + cp_len : length(symbols_padded)
+    
+        buf_symbols = flipud(symbols_padded(i - num_subcarriers - cp_len + 1 : i));
+        
+        y(i - num_subcarriers - cp_len + 1) = h(i - num_subcarriers - cp_len + 1,:) * buf_symbols;
+        
+    end
+    
     % This function emulates a Rayleigh fading channel with
     % Channel gain => h ~ CN(0,1)
     % AWGN => w ~ CN(0, sigma^2)
     % where, sigma = sqrt(1/2*SNR)
-    
-    length = numel(rep_symbols);
-    
+        
     % Signal to noise ratio on linear scale for the iteration
-    snr_now = 10^(SNR/10); 
+    snr_now = 10^(SNR/10);
+    
+    % ADDITIVE WHITE GAUSSIAN NOISE
+    sigma = sqrt(Eb/(2*snr_now)); % standard devation of noise for BPSK
+    
+    w = sigma*(randn(numel(symbols),1) + 1i*randn(numel(symbols),1)); % complex noise
+    
+    % Received signal
+    rx_symbols =  y + w;
+
+end
+
+function h = channel_gain(num_subcarriers, taps, cp_len)
 
     % CHANNEL GAIN
     % Rayleigh fading channel gain is given by a 
     % complex normal distribution.
     
-    h_real = sqrt(0.5)*randn(length, 1); % real part
-    h_imag = sqrt(0.5)*randn(length, 1); % imaginary part
+    h_real = sqrt(0.5)*randn(taps, 1); % real part
+    h_imag = sqrt(0.5)*randn(taps, 1); % imaginary part
     
     h = h_real + 1i*h_imag; % complex number
     
-    % ADDITIVE WHITE GAUSSIAN NOISE
-    sigma = sqrt(Eb/(2*snr_now)); % standard devation of noise for BPSK
+    h = vertcat(h,zeros(num_subcarriers + cp_len -taps,1));
     
-    w = sigma*(randn(length,1) + 1i*randn(length,1)); % complex noise
-    
-    % Received signal
-    rx_symbols =  h .* rep_symbols + w;
+    h = repmat(h,1, num_subcarriers + cp_len);
 
 end
 
-function rx_vector = maximal_ratio_combiner(rx_symbols, h, reps)
+function rx_vector = maximal_ratio_combiner(rx_symbols, H)
 
-    length = numel(rx_symbols)/reps;
-    
-    rx_matrix = reshape(rx_symbols, reps, length);
-    
-    h_matrix = reshape(h, reps, length);
+    H_flat = H(:);
+    rx_symbols_flat = rx_symbols(:);
     
     % Maximal Ratio Combiner
-    
-    rx_vector = zeros(length,1);
-    
-    for i = 1:length
-        
-        h_i = h_matrix(:,i);
-        y_i = rx_matrix(:,i);
-        
-        h_i_norm = norm(h_i);
-        
-        rx_symbol = (h_i' * y_i) / (h_i_norm);
-        
-        rx_vector(i) = rx_symbol;
-        
-    end
+    rx_vector = (conj(H_flat) .* rx_symbols_flat) ./ abs(H_flat);
 
 end
 
