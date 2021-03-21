@@ -1,16 +1,31 @@
+%% QUESTION 3
+
+% Part (b)
+% Come up with your own pilot transmission scheme. Perform your own
+% channel estimation at the receiver such that it works for frequency
+% selective channels. Plot BER vs. SNR for a 4-tap Rayleigh fading channel.
+
 % Parameters
 num_subcarriers = 64;
-signal_length = num_subcarriers * 200;
+taps = 1;
+signal_length = num_subcarriers * 20000;
 SNR = -10 : 0.5 : 30;
+
+h_real = sqrt(0.5)*randn(taps, 1); % real part
+h_imag = sqrt(0.5)*randn(taps, 1); % imaginary part
+
+h = h_real + 1i*h_imag; % complex number
 
 %Generating a random signal with binary bits (0 and 1)
 tx_bits = randi([0,1],signal_length,1);
 
 ofdm_BER = zeros(numel(SNR),1);
 
+% Calling OFDM system for a single tap with same channel for the
+% entire message sequence.
 for i = 1:numel(SNR)
 
-    ofdm_BER(i) = ofdm_system(tx_bits, SNR(i), 8, 64, 8);
+    ofdm_BER(i) = ofdm_system(tx_bits, SNR(i), taps, 64, 8, h);
     
 end
 
@@ -25,7 +40,7 @@ grid on;
 
 %% FUNCTIONS
 
-function error = ofdm_system(tx_bits, SNR, taps, num_subcarriers, cp_len)
+function error = ofdm_system(tx_bits, SNR, taps, num_subcarriers, cp_len, h)
 
     % Bit Energy
     Eb = 0.5;
@@ -47,7 +62,7 @@ function error = ofdm_system(tx_bits, SNR, taps, num_subcarriers, cp_len)
     tx_symbols = cp_ifft_symbols(:);    
     
     % ##### Channel #####
-    [rx_symbols, h] = channel(tx_symbols, SNR, Eb, taps, num_subcarriers, cp_len);
+    [rx_symbols, h] = channel(tx_symbols, SNR, Eb, taps, num_subcarriers, cp_len, h);
     
     % ##### h matrix #####
     sz = size(h);
@@ -142,14 +157,14 @@ function fft_symbols = ofdm_fft(ofdm_symbols)
 
 end
 
-function [rx_symbols, h] = channel(symbols, SNR, Eb, taps, num_subcarriers, cp_len)
+function [rx_symbols, h] = channel(symbols, SNR, Eb, taps, num_subcarriers, cp_len, h1)
 
     y = zeros(numel(symbols),1);
     symbols_padded = vertcat(zeros(num_subcarriers + cp_len - 1, 1),symbols);
     h = [];
     for i = 1 : (numel(symbols) / (num_subcarriers + cp_len))
        
-        h = [h channel_gain(num_subcarriers, taps, cp_len)];
+        h = [h channel_gain(num_subcarriers, taps, cp_len, h1)];
         
     end
     
@@ -181,20 +196,20 @@ function [rx_symbols, h] = channel(symbols, SNR, Eb, taps, num_subcarriers, cp_l
 
 end
 
-function h = channel_gain(num_subcarriers, taps, cp_len)
+function h = channel_gain(num_subcarriers, taps, cp_len, h1)
 
     % CHANNEL GAIN
     % Rayleigh fading channel gain is given by a 
     % complex normal distribution.
     
-    h_real = sqrt(0.5)*randn(taps, 1); % real part
-    h_imag = sqrt(0.5)*randn(taps, 1); % imaginary part
+%     h_real = sqrt(0.5)*randn(taps, 1); % real part
+%     h_imag = sqrt(0.5)*randn(taps, 1); % imaginary part
+%     
+%     h = h_real + 1i*h_imag; % complex number
     
-    h = h_real + 1i*h_imag; % complex number
+    h = vertcat(h1,zeros(num_subcarriers + cp_len -taps,1));
     
-    h = vertcat(h,zeros(num_subcarriers + cp_len -taps,1));
-    
-    h = repmat(h,1, num_subcarriers + cp_len);
+    h = repmat(h, 1, num_subcarriers + cp_len);
 
 end
 

@@ -1,22 +1,26 @@
+%% QUESTION 3
+% Build your own point-to-point OFDM system (transmitter and receiver)
+% with 64-point IFFT/FFT and 8 samples of CP. The bandwidth is 1 MHz.
+% Each subcarrier should carry QPSK modulated signals.
+
+% Part (a)
+% Plot BER vs. SNR for a single tap Rayleigh fading channel assuming
+% that the channel is perfectly known.
+
 % Parameters
 num_subcarriers = 64;
-taps = 1;
 signal_length = num_subcarriers * 20000;
-SNR = -10 : 0.5 : 30;
-
-h_real = sqrt(0.5)*randn(taps, 1); % real part
-h_imag = sqrt(0.5)*randn(taps, 1); % imaginary part
-
-h = h_real + 1i*h_imag; % complex number
+SNR = -10 : 0.5 : 40;
 
 %Generating a random signal with binary bits (0 and 1)
 tx_bits = randi([0,1],signal_length,1);
 
 ofdm_BER = zeros(numel(SNR),1);
 
+% Calling OFDM system for a single tap
 for i = 1:numel(SNR)
 
-    ofdm_BER(i) = ofdm_system(tx_bits, SNR(i), taps, 64, 8, h);
+    ofdm_BER(i) = ofdm_system(tx_bits, SNR(i), 1, 64, 8);
     
 end
 
@@ -24,14 +28,14 @@ end
 
 figure(1);
 semilogy(SNR, ofdm_BER);
-title('BER for Different Cases');
+title('BER vs. SNR ');
 xlabel('SNR (dB)');
 ylabel('BER');
 grid on;
 
 %% FUNCTIONS
 
-function error = ofdm_system(tx_bits, SNR, taps, num_subcarriers, cp_len, h)
+function error = ofdm_system(tx_bits, SNR, taps, num_subcarriers, cp_len)
 
     % Bit Energy
     Eb = 0.5;
@@ -53,7 +57,7 @@ function error = ofdm_system(tx_bits, SNR, taps, num_subcarriers, cp_len, h)
     tx_symbols = cp_ifft_symbols(:);    
     
     % ##### Channel #####
-    [rx_symbols, h] = channel(tx_symbols, SNR, Eb, taps, num_subcarriers, cp_len, h);
+    [rx_symbols, h] = channel(tx_symbols, SNR, Eb, taps, num_subcarriers, cp_len);
     
     % ##### h matrix #####
     sz = size(h);
@@ -148,14 +152,14 @@ function fft_symbols = ofdm_fft(ofdm_symbols)
 
 end
 
-function [rx_symbols, h] = channel(symbols, SNR, Eb, taps, num_subcarriers, cp_len, h1)
+function [rx_symbols, h] = channel(symbols, SNR, Eb, taps, num_subcarriers, cp_len)
 
     y = zeros(numel(symbols),1);
     symbols_padded = vertcat(zeros(num_subcarriers + cp_len - 1, 1),symbols);
     h = [];
     for i = 1 : (numel(symbols) / (num_subcarriers + cp_len))
        
-        h = [h channel_gain(num_subcarriers, taps, cp_len, h1)];
+        h = [h channel_gain(num_subcarriers, taps, cp_len)];
         
     end
     
@@ -187,20 +191,20 @@ function [rx_symbols, h] = channel(symbols, SNR, Eb, taps, num_subcarriers, cp_l
 
 end
 
-function h = channel_gain(num_subcarriers, taps, cp_len, h1)
+function h = channel_gain(num_subcarriers, taps, cp_len)
 
     % CHANNEL GAIN
     % Rayleigh fading channel gain is given by a 
     % complex normal distribution.
     
-%     h_real = sqrt(0.5)*randn(taps, 1); % real part
-%     h_imag = sqrt(0.5)*randn(taps, 1); % imaginary part
-%     
-%     h = h_real + 1i*h_imag; % complex number
+    h_real = sqrt(0.5)*randn(taps, 1); % real part
+    h_imag = sqrt(0.5)*randn(taps, 1); % imaginary part
     
-    h = vertcat(h1,zeros(num_subcarriers + cp_len -taps,1));
+    h = h_real + 1i*h_imag; % complex number
     
-    h = repmat(h, 1, num_subcarriers + cp_len);
+    h = vertcat(h,zeros(num_subcarriers + cp_len -taps,1));
+    
+    h = repmat(h,1, num_subcarriers + cp_len);
 
 end
 
